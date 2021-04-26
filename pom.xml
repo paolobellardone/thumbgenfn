@@ -30,7 +30,7 @@
     <modelVersion>4.0.0</modelVersion>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <fdk.version>1.0.124</fdk.version>
+        <fdk.version>1.0.128</fdk.version>
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
     </properties>
@@ -39,6 +39,7 @@
     <version>1.0.0</version>
     <name>thumbgen</name>
 
+<!-- REMOVED DUE TO UPGRADES IN ORACLE FUNCTIONS SERVICE
     <repositories>
         <repository>
             <id>fn-release-repo</id>
@@ -51,13 +52,13 @@
             </snapshots>
         </repository>
     </repositories>
-
+-->
     <dependencyManagement>
         <dependencies>
             <dependency>
                 <groupId>com.oracle.oci.sdk</groupId>
                 <artifactId>oci-java-sdk-bom</artifactId>
-                <version>1.35.1</version>
+                <version>1.36.1</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>

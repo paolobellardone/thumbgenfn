@@ -31,6 +31,9 @@ import com.oracle.bmc.Region;
 import com.oracle.bmc.auth.SimpleAuthenticationDetailsProvider;
 import com.oracle.bmc.auth.StringPrivateKeySupplier;
 
+// Authenticate using resource principal -- NON FUNZIONA LA SCRITTURA!!! --> PROBABILE BUG di OCI-JAVA-SDK
+import com.oracle.bmc.auth.ResourcePrincipalAuthenticationDetailsProvider;
+
 import com.oracle.bmc.objectstorage.ObjectStorage;
 import com.oracle.bmc.objectstorage.ObjectStorageClient;
 
@@ -73,9 +76,21 @@ public class ThumbnailGeneratorFunction {
                                                             .fingerprint(System.getenv("OCI_FINGERPRINT"))
                                                             .passPhrase(System.getenv("OCI_PASSPHRASE"))
                                                             .build();
+/*
+
+    final ResourcePrincipalAuthenticationDetailsProvider provider = ResourcePrincipalAuthenticationDetailsProvider.builder()
+                                                                        .build();
+*/
 
     public ThumbnailGeneratorFunction() {
         try {
+            /*
+            System.err.println("OCI_RESOURCE_PRINCIPAL_VERSION " + System.getenv("OCI_RESOURCE_PRINCIPAL_VERSION"));
+            System.err.println("OCI_RESOURCE_PRINCIPAL_REGION " + System.getenv("OCI_RESOURCE_PRINCIPAL_REGION"));
+            System.err.println("OCI_RESOURCE_PRINCIPAL_RPST " + System.getenv("OCI_RESOURCE_PRINCIPAL_RPST"));
+            System.err.println("OCI_RESOURCE_PRINCIPAL_PRIVATE_PEM " + System.getenv("OCI_RESOURCE_PRINCIPAL_PRIVATE_PEM"));
+            */
+
             objStoreClient = new ObjectStorageClient(provider);
         } catch (Throwable ex) {
             System.err.println("Failed to instantiate ObjectStorage client - " + ex.getMessage());
@@ -121,6 +136,8 @@ public class ThumbnailGeneratorFunction {
                                                     .build()
                                             );
 
+            System.err.println("Processing file: " + objectName);
+
             // Generate the thumbnail
             // TODO: parametrize the resolution and the output format
             ByteArrayOutputStream os = new ByteArrayOutputStream();
@@ -130,6 +147,8 @@ public class ThumbnailGeneratorFunction {
                       .outputFormat("jpg")
                       .toOutputStream(os);
                       //.toFiles(new File("./output"), Rename.SUFFIX_HYPHEN_THUMBNAIL);
+
+            System.err.println("Finished processing file: " + objectName);
 
             // Put file to bucketOut
             ByteArrayInputStream is = new ByteArrayInputStream(os.toByteArray());
@@ -144,6 +163,8 @@ public class ThumbnailGeneratorFunction {
                                             );
 
             os.close();
+
+            System.err.println("Created file: Scaled-" + objectName);
 
             CopyObjectResponse copyOriginalImage = objStoreClient.copyObject(
                                                         CopyObjectRequest.builder()
@@ -160,6 +181,9 @@ public class ThumbnailGeneratorFunction {
                                                             )
                                                             .build()
                                                     );
+
+            System.err.println("Copied original file to destination: " + objectName);
+
             DeleteObjectResponse deleteProcessedImage = objStoreClient.deleteObject(
                                                             DeleteObjectRequest.builder()
                                                                 .namespaceName(nameSpace)
@@ -170,8 +194,10 @@ public class ThumbnailGeneratorFunction {
 
             objStoreClient.close();
 
+            System.err.println("Thumbnail generation completed, please see the output in bucket " + bucketOut);
+
         } catch (Throwable e) {
-            System.err.println("Error fetching object list from bucket " + e.getMessage());
+            System.err.println("Error during thumbnail generation: " + e.getMessage());
         }
 
         return "Thumbnail generation completed, please see the output in bucket " + bucketOut;
