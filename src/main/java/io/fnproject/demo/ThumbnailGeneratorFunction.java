@@ -38,18 +38,21 @@ import com.oracle.bmc.objectstorage.ObjectStorage;
 import com.oracle.bmc.objectstorage.ObjectStorageClient;
 
 import com.oracle.bmc.objectstorage.model.CopyObjectDetails;
+import com.oracle.bmc.objectstorage.model.WorkRequest;
 
 import com.oracle.bmc.objectstorage.requests.CopyObjectRequest;
 import com.oracle.bmc.objectstorage.requests.DeleteObjectRequest;
 import com.oracle.bmc.objectstorage.requests.GetObjectRequest;
 import com.oracle.bmc.objectstorage.requests.PutObjectRequest;
 import com.oracle.bmc.objectstorage.requests.ListObjectsRequest;
+import com.oracle.bmc.objectstorage.requests.GetWorkRequestRequest;
 
 import com.oracle.bmc.objectstorage.responses.CopyObjectResponse;
 import com.oracle.bmc.objectstorage.responses.DeleteObjectResponse;
 import com.oracle.bmc.objectstorage.responses.GetObjectResponse;
 import com.oracle.bmc.objectstorage.responses.PutObjectResponse;
 import com.oracle.bmc.objectstorage.responses.ListObjectsResponse;
+import com.oracle.bmc.objectstorage.responses.GetWorkRequestResponse;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -103,7 +106,6 @@ public class ThumbnailGeneratorFunction {
             return "Error generating thumbnail, please check logs";
         }
 
-        // fetch the file from the object storage
         String nameSpace = System.getenv("OCI_NAMESPACE");
         String bucketIn = System.getenv("BUCKET_IN");
         String bucketOut = System.getenv("BUCKET_OUT");
@@ -182,15 +184,25 @@ public class ThumbnailGeneratorFunction {
                                                             .build()
                                                     );
 
-            System.err.println("Copied original file to destination: " + objectName);
+            GetWorkRequestResponse getWorkRequestResponse = objStoreClient.getWaiters().forWorkRequest(
+                                                                GetWorkRequestRequest.builder()
+                                                                    .workRequestId(copyOriginalImage.getOpcWorkRequestId())
+                                                                    .build()
+                                                                )
+                                                                .execute();
+            WorkRequest.Status status = getWorkRequestResponse.getWorkRequest().getStatus();
 
-            DeleteObjectResponse deleteProcessedImage = objStoreClient.deleteObject(
-                                                            DeleteObjectRequest.builder()
-                                                                .namespaceName(nameSpace)
-                                                                .bucketName(bucketIn)
-                                                                .objectName(objectName)
-                                                                .build()
-                                                        );
+            if (status == WorkRequest.Status.Completed) {
+                System.err.println("Copied original file to destination: " + objectName);
+                // Delete the source object only after the successful copy of the file
+                DeleteObjectResponse deleteProcessedImage = objStoreClient.deleteObject(
+                    DeleteObjectRequest.builder()
+                        .namespaceName(nameSpace)
+                        .bucketName(bucketIn)
+                        .objectName(objectName)
+                        .build()
+                );
+            }
 
             objStoreClient.close();
 
