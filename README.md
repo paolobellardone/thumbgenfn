@@ -1,10 +1,32 @@
 # Serverless Thumbnail Generator
 
+A serverless application that reads an image and then renders a scaled down version using Oracle Functions, Object Storage and Events.
+## Pre-requisites
+
+First of all you need an OCI tenancy and a user member of a group having the right policies to use Functions, Object Storage and Events. Then you need to follow these steps:
+
+1. Create two Object Storage buckets, one for input and one for output, for example *fninput* and *fnputput*
+2. Enable the Emit Object Events setting for the input bucket
+3. Create a repository in Oracle Registry to deploy the serverless function, for example [ocir-repo]
+4. Create a rule in the Events service to listen to events emitted by Object Storage and to activate the function to scale the image down
+5. Create a Functions application and configure logging
+6. Configure the environment used to execute the function by specifying the variables needed to run the code.
+
+## Configure and deploy the function
+
+Clone this repository
+
+```sh
+git clone https://github.com/paolobellardone/thumbgenfn.git
+```
+
+<!--
 Initialize your function
 
 ```sh
 fn init --runtime java [function-name]
 ```
+-->
 
 Switch into the generated directory
 
