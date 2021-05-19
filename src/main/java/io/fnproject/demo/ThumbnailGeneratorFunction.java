@@ -31,7 +31,7 @@ import com.oracle.bmc.Region;
 import com.oracle.bmc.auth.SimpleAuthenticationDetailsProvider;
 import com.oracle.bmc.auth.StringPrivateKeySupplier;
 
-// Authenticate using resource principal -- NON FUNZIONA LA SCRITTURA!!! --> PROBABILE BUG di OCI-JAVA-SDK
+// Authenticate using resource principal -- IT DOES NOT WORK WHEN WRITING ON BUCKET -->  OCI-JAVA-SDK BUG?
 import com.oracle.bmc.auth.ResourcePrincipalAuthenticationDetailsProvider;
 
 import com.oracle.bmc.objectstorage.ObjectStorage;
@@ -61,49 +61,54 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import net.coobird.thumbnailator.Thumbnails;
-import net.coobird.thumbnailator.name.Rename;
+import java.awt.image.BufferedImage;
+import java.awt.Graphics2D;
+
+import javax.imageio.ImageIO;
 
 public class ThumbnailGeneratorFunction {
-
-    private ObjectStorage objStoreClient = null;
 
     // Read the private key from the environment and substitute the token |n| with \n to support multiline
     private String privateKeyPEM = System.getenv("OCI_PRIVATE_KEY").replace("|n|","\n");
 
     final SimpleAuthenticationDetailsProvider provider = SimpleAuthenticationDetailsProvider.builder()
-                                                            .region(Region.fromRegionId(System.getenv("OCI_REGION"))) // Decode Region from Id
-                                                            .tenantId(System.getenv("OCI_TENANT_ID"))
-                                                            .userId(System.getenv("OCI_USER_ID"))
-                                                            .privateKeySupplier(new StringPrivateKeySupplier(privateKeyPEM))
-                                                            .fingerprint(System.getenv("OCI_FINGERPRINT"))
-                                                            .passPhrase(System.getenv("OCI_PASSPHRASE"))
-                                                            .build();
+                                                                .region(Region.fromRegionId(System.getenv("OCI_REGION"))) // Decode Region from Id
+                                                                .tenantId(System.getenv("OCI_TENANT_ID"))
+                                                                .userId(System.getenv("OCI_USER_ID"))
+                                                                .privateKeySupplier(new StringPrivateKeySupplier(privateKeyPEM))
+                                                                .fingerprint(System.getenv("OCI_FINGERPRINT"))
+                                                                .passPhrase(System.getenv("OCI_PASSPHRASE"))
+                                                                .build();
 /*
-
     final ResourcePrincipalAuthenticationDetailsProvider provider = ResourcePrincipalAuthenticationDetailsProvider.builder()
                                                                         .build();
 */
 
-    public ThumbnailGeneratorFunction() {
-        try {
-            /*
-            System.err.println("OCI_RESOURCE_PRINCIPAL_VERSION " + System.getenv("OCI_RESOURCE_PRINCIPAL_VERSION"));
-            System.err.println("OCI_RESOURCE_PRINCIPAL_REGION " + System.getenv("OCI_RESOURCE_PRINCIPAL_REGION"));
-            System.err.println("OCI_RESOURCE_PRINCIPAL_RPST " + System.getenv("OCI_RESOURCE_PRINCIPAL_RPST"));
-            System.err.println("OCI_RESOURCE_PRINCIPAL_PRIVATE_PEM " + System.getenv("OCI_RESOURCE_PRINCIPAL_PRIVATE_PEM"));
-            */
-
-            objStoreClient = new ObjectStorageClient(provider);
-        } catch (Throwable ex) {
-            System.err.println("Failed to instantiate ObjectStorage client - " + ex.getMessage());
-        }
+    private BufferedImage scaleImage(BufferedImage originalImage, double scaleWidth, double scaleHeight) {
+        int targetWidth = (int) Math.ceil(originalImage.getWidth() * scaleWidth);
+        int targetHeight = (int) Math.ceil(originalImage.getHeight() * scaleHeight);
+        BufferedImage resizedImage = new BufferedImage(targetWidth, targetHeight, BufferedImage.TYPE_INT_RGB);
+        Graphics2D graphics2D = resizedImage.createGraphics();
+        graphics2D.drawImage(originalImage, 0, 0, targetWidth, targetHeight, null);
+        graphics2D.scale(scaleWidth, scaleHeight);
+        graphics2D.dispose();
+        return resizedImage;
     }
 
     public String handleRequest() {
+        ObjectStorage objStoreClient = null;
+        double scalingFactor = Double.parseDouble(System.getenv("SCALING_FACTOR"));
+
+        try {
+            objStoreClient = new ObjectStorageClient(provider);
+        } catch (Throwable ex) {
+            System.err.println("Failed to instantiate ObjectStorage client - " + ex.getMessage());
+            return "Failed to instantiate ObjectStorage client, please check logs.";
+        }
+
         if (objStoreClient == null) {
             System.err.println("There was a problem creating the ObjectStorage Client object. Please check logs.");
-            return "Error generating thumbnail, please check logs";
+            return "Error generating thumbnail, please check logs.";
         }
 
         String nameSpace = System.getenv("OCI_NAMESPACE");
@@ -141,14 +146,10 @@ public class ThumbnailGeneratorFunction {
             System.err.println("Processing file: " + objectName);
 
             // Generate the thumbnail
-            // TODO: parametrize the resolution and the output format
             ByteArrayOutputStream os = new ByteArrayOutputStream();
-            Thumbnails.of(getResponse.getInputStream())
-                      //.size(640, 480)
-                      .scale(0.5) // the thumbnail is 50% smaller
-                      .outputFormat("jpg")
-                      .toOutputStream(os);
-                      //.toFiles(new File("./output"), Rename.SUFFIX_HYPHEN_THUMBNAIL);
+            BufferedImage originalImage = ImageIO.read(getResponse.getInputStream());
+            BufferedImage outputImage = scaleImage(originalImage, scalingFactor, scalingFactor);
+            ImageIO.write(outputImage, "jpg", os);
 
             System.err.println("Finished processing file: " + objectName);
 
@@ -159,11 +160,11 @@ public class ThumbnailGeneratorFunction {
                                                     .namespaceName(nameSpace)
                                                     .bucketName(bucketOut)
                                                     .objectName("Scaled-" + objectName) // TODO: parametrize the name???
-                                                    //.putObjectBody(getResponse.getInputStream())
                                                     .putObjectBody(is)
                                                     .build()
                                             );
 
+            is.close();
             os.close();
 
             System.err.println("Created file: Scaled-" + objectName);
@@ -207,12 +208,13 @@ public class ThumbnailGeneratorFunction {
             objStoreClient.close();
 
             System.err.println("Thumbnail generation completed, please see the output in bucket " + bucketOut);
+            return "Thumbnail generation completed, please see the output in bucket " + bucketOut;
 
         } catch (Throwable e) {
             System.err.println("Error during thumbnail generation: " + e.getMessage());
+            return "Error during thumbnail generation, please check logs.";
         }
 
-        return "Thumbnail generation completed, please see the output in bucket " + bucketOut;
     }
 
 }
