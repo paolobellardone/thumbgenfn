@@ -68,8 +68,11 @@ import javax.imageio.ImageIO;
 
 public class ThumbnailGeneratorFunction {
 
+    private ObjectStorage objStoreClient = null;
+
     // Read the private key from the environment and substitute the token |n| with \n to support multiline
     private String privateKeyPEM = System.getenv("OCI_PRIVATE_KEY").replace("|n|","\n");
+
 
     final SimpleAuthenticationDetailsProvider provider = SimpleAuthenticationDetailsProvider.builder()
                                                                 .region(Region.fromRegionId(System.getenv("OCI_REGION"))) // Decode Region from Id
@@ -84,6 +87,23 @@ public class ThumbnailGeneratorFunction {
                                                                         .build();
 */
 
+    public ThumbnailGeneratorFunction() {
+        //print env vars in Functions container
+        //System.err.println("OCI_RESOURCE_PRINCIPAL_VERSION " + System.getenv("OCI_RESOURCE_PRINCIPAL_VERSION"));
+        //System.err.println("OCI_RESOURCE_PRINCIPAL_REGION " + System.getenv("OCI_RESOURCE_PRINCIPAL_REGION"));
+        //System.err.println("OCI_RESOURCE_PRINCIPAL_RPST " + System.getenv("OCI_RESOURCE_PRINCIPAL_RPST"));
+        //System.err.println("OCI_RESOURCE_PRINCIPAL_PRIVATE_PEM " + System.getenv("OCI_RESOURCE_PRINCIPAL_PRIVATE_PEM"));
+
+        try {
+            objStoreClient = new ObjectStorageClient(provider);
+        } catch (Throwable ex) {
+            System.err.println("Failed to instantiate ObjectStorage client - " + ex.getMessage());
+            //return "Failed to instantiate ObjectStorage client, please check logs.";
+        }
+
+    }
+
+
     private BufferedImage scaleImage(BufferedImage originalImage, double scaleWidth, double scaleHeight) {
         int targetWidth = (int) Math.ceil(originalImage.getWidth() * scaleWidth);
         int targetHeight = (int) Math.ceil(originalImage.getHeight() * scaleHeight);
@@ -96,15 +116,17 @@ public class ThumbnailGeneratorFunction {
     }
 
     public String handleRequest() {
-        ObjectStorage objStoreClient = null;
+        //ObjectStorage objStoreClient = null;
         double scalingFactor = Double.parseDouble(System.getenv("SCALING_FACTOR"));
 
+        /*
         try {
             objStoreClient = new ObjectStorageClient(provider);
         } catch (Throwable ex) {
             System.err.println("Failed to instantiate ObjectStorage client - " + ex.getMessage());
             return "Failed to instantiate ObjectStorage client, please check logs.";
         }
+        */
 
         if (objStoreClient == null) {
             System.err.println("There was a problem creating the ObjectStorage Client object. Please check logs.");
