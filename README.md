@@ -1,6 +1,7 @@
 # Serverless Thumbnail Generator
 
 A serverless application that reads an image and then renders a scaled down version using Oracle Functions, Object Storage and Events.
+
 ## Pre-requisites
 
 First of all you need an OCI tenancy and a user member of a group having the right policies to use Functions, Object Storage and Events. Then you need to follow these steps:

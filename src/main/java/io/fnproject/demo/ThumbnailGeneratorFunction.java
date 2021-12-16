@@ -28,10 +28,6 @@ package io.fnproject.demo;
 
 import com.oracle.bmc.Region;
 
-import com.oracle.bmc.auth.SimpleAuthenticationDetailsProvider;
-import com.oracle.bmc.auth.StringPrivateKeySupplier;
-
-// Authenticate using resource principal -- IT DOES NOT WORK WHEN WRITING ON BUCKET -->  OCI-JAVA-SDK BUG?
 import com.oracle.bmc.auth.ResourcePrincipalAuthenticationDetailsProvider;
 
 import com.oracle.bmc.objectstorage.ObjectStorage;
@@ -70,26 +66,9 @@ public class ThumbnailGeneratorFunction {
 
     private ObjectStorage objStoreClient = null;
 
-    // Read the private key from the environment and substitute the token |n| with \n to support multiline
-    private String privateKeyPEM = System.getenv("OCI_PRIVATE_KEY").replace("|n|","\n");
-
-
-    final SimpleAuthenticationDetailsProvider provider = SimpleAuthenticationDetailsProvider.builder()
-                                                                .region(Region.fromRegionId(System.getenv("OCI_REGION"))) // Decode Region from Id
-                                                                .tenantId(System.getenv("OCI_TENANT_ID"))
-                                                                .userId(System.getenv("OCI_USER_ID"))
-                                                                .privateKeySupplier(new StringPrivateKeySupplier(privateKeyPEM))
-                                                                .fingerprint(System.getenv("OCI_FINGERPRINT"))
-                                                                .passPhrase(System.getenv("OCI_PASSPHRASE"))
-                                                                .build();
-
-
-//    final ResourcePrincipalAuthenticationDetailsProvider provider = ResourcePrincipalAuthenticationDetailsProvider.builder()
-//                                                                        .build();
-
+    final ResourcePrincipalAuthenticationDetailsProvider provider = ResourcePrincipalAuthenticationDetailsProvider.builder().build();
 
     public ThumbnailGeneratorFunction() {
-        //print env vars in Functions container
         System.err.println("OCI_RESOURCE_PRINCIPAL_VERSION " + System.getenv("OCI_RESOURCE_PRINCIPAL_VERSION"));
         System.err.println("OCI_RESOURCE_PRINCIPAL_REGION " + System.getenv("OCI_RESOURCE_PRINCIPAL_REGION"));
         System.err.println("OCI_RESOURCE_PRINCIPAL_RPST " + System.getenv("OCI_RESOURCE_PRINCIPAL_RPST"));
@@ -99,11 +78,9 @@ public class ThumbnailGeneratorFunction {
             objStoreClient = new ObjectStorageClient(provider);
         } catch (Throwable ex) {
             System.err.println("Failed to instantiate ObjectStorage client - " + ex.getMessage());
-            //return "Failed to instantiate ObjectStorage client, please check logs.";
         }
 
     }
-
 
     private BufferedImage scaleImage(BufferedImage originalImage, double scaleWidth, double scaleHeight) {
         int targetWidth = (int) Math.ceil(originalImage.getWidth() * scaleWidth);
@@ -117,23 +94,14 @@ public class ThumbnailGeneratorFunction {
     }
 
     public String handleRequest() {
-        //ObjectStorage objStoreClient = null;
         double scalingFactor = Double.parseDouble(System.getenv("SCALING_FACTOR"));
-
-        /*
-        try {
-            objStoreClient = new ObjectStorageClient(provider);
-        } catch (Throwable ex) {
-            System.err.println("Failed to instantiate ObjectStorage client - " + ex.getMessage());
-            return "Failed to instantiate ObjectStorage client, please check logs.";
-        }
-        */
 
         if (objStoreClient == null) {
             System.err.println("There was a problem creating the ObjectStorage Client object. Please check logs.");
             return "Error generating thumbnail, please check logs.";
         }
 
+        String region = System.getenv("OCI_REGION");
         String nameSpace = System.getenv("OCI_NAMESPACE");
         String bucketIn = System.getenv("BUCKET_IN");
         String bucketOut = System.getenv("BUCKET_OUT");
@@ -172,7 +140,7 @@ public class ThumbnailGeneratorFunction {
             ByteArrayOutputStream os = new ByteArrayOutputStream();
             BufferedImage originalImage = ImageIO.read(getResponse.getInputStream());
             BufferedImage outputImage = scaleImage(originalImage, scalingFactor, scalingFactor);
-            ImageIO.write(outputImage, "jpg", os);
+            ImageIO.write(outputImage, "jpg", os); // TODO: parametrize output format???
 
             System.err.println("Finished processing file: " + objectName);
 
@@ -199,7 +167,7 @@ public class ThumbnailGeneratorFunction {
                                                             .copyObjectDetails(
                                                                 CopyObjectDetails.builder()
                                                                     .sourceObjectName(objectName)
-                                                                    .destinationRegion(System.getenv("OCI_REGION"))
+                                                                    .destinationRegion(region)
                                                                     .destinationNamespace(nameSpace)
                                                                     .destinationBucket(bucketOut)
                                                                     .destinationObjectName(objectName)
