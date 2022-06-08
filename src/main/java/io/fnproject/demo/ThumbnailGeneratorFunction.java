@@ -2,7 +2,7 @@
  *
  * MIT License
  *
- * Copyright (c) 2021 PaoloB
+ * Copyright (c) 2022 PaoloB
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -54,6 +54,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 
 import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -67,6 +68,7 @@ public class ThumbnailGeneratorFunction {
     private ObjectStorage objStoreClient = null;
 
     final ResourcePrincipalAuthenticationDetailsProvider provider = ResourcePrincipalAuthenticationDetailsProvider.builder().build();
+    final static String[] imageFormats = {"bmp", "gif", "jpeg", "jpg", "png", "tif", "tiff", "wbmp"};
 
     public ThumbnailGeneratorFunction() {
         System.err.println("OCI_RESOURCE_PRINCIPAL_VERSION " + System.getenv("OCI_RESOURCE_PRINCIPAL_VERSION"));
@@ -105,6 +107,12 @@ public class ThumbnailGeneratorFunction {
         String nameSpace = System.getenv("OCI_NAMESPACE");
         String bucketIn = System.getenv("BUCKET_IN");
         String bucketOut = System.getenv("BUCKET_OUT");
+        // imageFormat is one the following: BMP, GIF, JPEG, JPG, PNG, TIF, TIFF, WBMP, bmp, gif, jpeg, jpg, png, tif, tiff, wbmp
+        String imageFormat = System.getenv("IMAGE_FORMAT").toLowerCase();
+        if (!Arrays.asList(imageFormats).contains(imageFormat)) {
+            System.err.println("The format " + imageFormat + " specified for output images is not supported, please choose one among: bmp, gif, jpeg, jpg, png, tif, tiff, wbmp");
+            return "Error generating thumbnail, please check logs.";
+        }
 
         List<String> objNames = null;
         String objectName = null;
@@ -140,7 +148,7 @@ public class ThumbnailGeneratorFunction {
             ByteArrayOutputStream os = new ByteArrayOutputStream();
             BufferedImage originalImage = ImageIO.read(getResponse.getInputStream());
             BufferedImage outputImage = scaleImage(originalImage, scalingFactor, scalingFactor);
-            ImageIO.write(outputImage, "jpg", os); // TODO: parametrize output format???
+            ImageIO.write(outputImage, imageFormat, os);
 
             System.err.println("Finished processing file: " + objectName);
 
