@@ -63,18 +63,31 @@ import java.awt.Graphics2D;
 
 import javax.imageio.ImageIO;
 
+/**
+ * Main class that implements the thumbnail generation function.
+ *
+ * @version 1.0 15 Jun 2022
+ * @author PaoloB
+ */
 public class ThumbnailGeneratorFunction {
 
     private ObjectStorage objStoreClient = null;
+    private Boolean debug = Boolean.valueOf(getEnvVar("DEBUG", "false")); // If true, the logging will be more verbose
 
     final ResourcePrincipalAuthenticationDetailsProvider provider = ResourcePrincipalAuthenticationDetailsProvider.builder().build();
     final static String[] imageFormats = {"bmp", "gif", "jpeg", "jpg", "png", "tif", "tiff", "wbmp"};
 
+    /**
+     * Default constructor
+     */
     public ThumbnailGeneratorFunction() {
-        System.err.println("OCI_RESOURCE_PRINCIPAL_VERSION " + System.getenv("OCI_RESOURCE_PRINCIPAL_VERSION"));
-        System.err.println("OCI_RESOURCE_PRINCIPAL_REGION " + System.getenv("OCI_RESOURCE_PRINCIPAL_REGION"));
-        System.err.println("OCI_RESOURCE_PRINCIPAL_RPST " + System.getenv("OCI_RESOURCE_PRINCIPAL_RPST"));
-        System.err.println("OCI_RESOURCE_PRINCIPAL_PRIVATE_PEM " + System.getenv("OCI_RESOURCE_PRINCIPAL_PRIVATE_PEM"));
+
+        if (debug) {
+            System.err.println("OCI_RESOURCE_PRINCIPAL_VERSION " + System.getenv("OCI_RESOURCE_PRINCIPAL_VERSION"));
+            System.err.println("OCI_RESOURCE_PRINCIPAL_REGION " + System.getenv("OCI_RESOURCE_PRINCIPAL_REGION"));
+            System.err.println("OCI_RESOURCE_PRINCIPAL_RPST " + System.getenv("OCI_RESOURCE_PRINCIPAL_RPST"));
+            System.err.println("OCI_RESOURCE_PRINCIPAL_PRIVATE_PEM " + System.getenv("OCI_RESOURCE_PRINCIPAL_PRIVATE_PEM"));
+        }
 
         try {
             objStoreClient = new ObjectStorageClient(provider);
@@ -84,32 +97,77 @@ public class ThumbnailGeneratorFunction {
 
     }
 
+    /**
+     * Scale the image with standard javax ImageIO.
+     *
+     * @param originalImage image to be converted
+     * @param scaleWidth scaling ration for width (between 0 and 1)
+     * @param scaleHeight scaling ratio for height (between 0 and 1)
+     * @return the created thumbnail
+     */
     private BufferedImage scaleImage(BufferedImage originalImage, double scaleWidth, double scaleHeight) {
+
+        // Evaluate scaled width and height for thumbnail
         int targetWidth = (int) Math.ceil(originalImage.getWidth() * scaleWidth);
         int targetHeight = (int) Math.ceil(originalImage.getHeight() * scaleHeight);
+
+        // Scale the image
         BufferedImage resizedImage = new BufferedImage(targetWidth, targetHeight, BufferedImage.TYPE_INT_RGB);
         Graphics2D graphics2D = resizedImage.createGraphics();
         graphics2D.drawImage(originalImage, 0, 0, targetWidth, targetHeight, null);
         graphics2D.scale(scaleWidth, scaleHeight);
         graphics2D.dispose();
+
         return resizedImage;
+
     }
 
-    public String handleRequest() {
-        double scalingFactor = Double.parseDouble(System.getenv("SCALING_FACTOR"));
+    /**
+     * Get the value of an environment variable or the default value if the variable is not defined
+     *
+     * @param variable name of the environment variable
+     * @param defaultValue default value to be used if the variable is undefined
+     * @return the value or the default value of the variable
+     */
+    private String getEnvVar(String variable, String defaultValue) {
 
+        String value = System.getenv(variable);
+        if (value == null)
+            return defaultValue;
+        else
+            return value;
+
+    }
+
+    /**
+     * Thumbnail generation function. It reads an image from a bucket defined in OCI Object Storage and then it creates a thumbnail
+     * with a scaled size defined via environment variables. The result is copied to another bucket along with the original image.
+     *
+     * @return a message with the result of the operation invoked
+     */
+    public String handleRequest() {
+
+        // Check if the OCI client is available, if not it exits with an error
         if (objStoreClient == null) {
             System.err.println("There was a problem creating the ObjectStorage Client object. Please check logs.");
             return "Error generating thumbnail, please check logs.";
         }
 
-        String region = System.getenv("OCI_REGION");
-        String nameSpace = System.getenv("OCI_NAMESPACE");
-        String bucketIn = System.getenv("BUCKET_IN");
-        String bucketOut = System.getenv("BUCKET_OUT");
-        // imageFormat is one the following: BMP, GIF, JPEG, JPG, PNG, TIF, TIFF, WBMP, bmp, gif, jpeg, jpg, png, tif, tiff, wbmp
-        String imageFormat = System.getenv("IMAGE_FORMAT").toLowerCase();
-        if (!Arrays.asList(imageFormats).contains(imageFormat)) {
+        // Reads the enviroment variables used to configure the OCI client and the image conversion engine
+        String region = getEnvVar("OCI_REGION", "");
+        String nameSpace = getEnvVar("OCI_NAMESPACE", "");
+        String bucketIn = getEnvVar("BUCKET_IN", "");
+        String bucketOut = getEnvVar("BUCKET_OUT", "");
+        // If the OCI-related parameters are not defined the function cannot proceed
+        if ( region.isEmpty() || nameSpace.isEmpty() || bucketIn.isEmpty() || bucketOut.isEmpty() ) {
+            System.err.println("The required environment variables OCI_REGION, OCI_NAMESPACE, BUCKET_IN, BUCKET_OUT are not defined. Please configure them before proceeding.");
+            return "Error generating thumbnail, please check logs.";
+        }
+        String namePrefix = getEnvVar("NAME_PREFIX", "scaled-"); // The default namePrefix is "scaled-"
+        double scalingFactor = Double.parseDouble(getEnvVar("SCALING_FACTOR", "0.5")); // The default scalingFactor is 0.5 (50% of the original size)
+        String imageFormat = getEnvVar(("IMAGE_FORMAT").toLowerCase(), "jpg"); // imageFormat is one the following: BMP, GIF, JPEG, JPG, PNG, TIF, TIFF, WBMP, bmp, gif, jpeg, jpg, png, tif, tiff, wbmp. The default value is jpg
+        // Check if the thumbnail extension is supported, if not it exits with an error
+        if ( !Arrays.asList(imageFormats).contains(imageFormat) ) {
             System.err.println("The format " + imageFormat + " specified for output images is not supported, please choose one among: bmp, gif, jpeg, jpg, png, tif, tiff, wbmp");
             return "Error generating thumbnail, please check logs.";
         }
@@ -158,7 +216,7 @@ public class ThumbnailGeneratorFunction {
                                                 PutObjectRequest.builder()
                                                     .namespaceName(nameSpace)
                                                     .bucketName(bucketOut)
-                                                    .objectName("Scaled-" + objectName) // TODO: parametrize the name???
+                                                    .objectName(namePrefix + objectName)
                                                     .putObjectBody(is)
                                                     .build()
                                             );
@@ -166,8 +224,9 @@ public class ThumbnailGeneratorFunction {
             is.close();
             os.close();
 
-            System.err.println("Created file: Scaled-" + objectName);
+            System.err.println("Created file: " + namePrefix + objectName);
 
+            // To use the CopyObject APIs you need to allow Object Storage to access the tenancy
             CopyObjectResponse copyOriginalImage = objStoreClient.copyObject(
                                                         CopyObjectRequest.builder()
                                                             .namespaceName(nameSpace)
