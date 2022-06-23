@@ -1,10 +1,12 @@
 # Serverless Thumbnail Generator
 
-A serverless application that reads an image and then renders a scaled down version using Oracle Functions, Object Storage and Events.
+# TEMPORARY README to be finished
+
+A serverless application that reads an image and then renders a scaled version using Oracle Functions, Object Storage, Events, and Logging.
 
 ## Pre-requisites
 
-First of all you need an OCI tenancy and a user member of a group having the right policies to use Functions, Object Storage and Events. Then you need to follow these steps:
+First of all you need an OCI tenancy and a user member of a group having the right policies to use Functions, Object Storage and Events. You need also to authoize Object Storage service to manage your object and buckets in order to use the CopyObject APIs. Then you need to follow these steps:
 
 1. Create two Object Storage buckets, one for input and one for output, for example *fninput* and *fnputput*
 2. Enable the Emit Object Events setting for the input bucket
@@ -72,6 +74,19 @@ Invoke your function
 ```sh
 fn invoke [application-name] [function-name]
 ```
+
+## Environment configuration
+
+| Variable       | Default value |
+|----------------|---------------|
+| OCI_NAMESPACE  | axdl3qyqcnos  |
+| OCI_REGION     | eu-milan-1    |
+| BUCKET_IN      | imageIn       |
+| BUCKET_OUT     | imageOut      |
+| NAME_PREFIX    | scaled-       |
+| IMAGE_FORMAT   | jpg           |
+| SCALING_FACTOR | 0.5           |
+| DEBUG          | false         |
 
 ## License
 
