@@ -156,8 +156,8 @@ public class ThumbnailGeneratorFunction {
         // Reads the enviroment variables used to configure the OCI client and the image conversion engine
         String region = getEnvVar("OCI_REGION", "");
         String nameSpace = getEnvVar("OCI_NAMESPACE", "");
-        String bucketIn = getEnvVar("BUCKET_IN", "");
-        String bucketOut = getEnvVar("BUCKET_OUT", "");
+        String bucketIn = getEnvVar("BUCKET_IN", "imageIn");
+        String bucketOut = getEnvVar("BUCKET_OUT", "ImageOut");
         // If the OCI-related parameters are not defined the function cannot proceed
         if ( region.isEmpty() || nameSpace.isEmpty() || bucketIn.isEmpty() || bucketOut.isEmpty() ) {
             System.err.println("The required environment variables OCI_REGION, OCI_NAMESPACE, BUCKET_IN, BUCKET_OUT are not defined. Please configure them before proceeding.");
