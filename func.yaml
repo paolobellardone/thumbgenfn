@@ -1,9 +1,9 @@
 schema_version: 20180708
 name: thumbgenfn
-version: 0.0.138
+version: 0.0.149
 runtime: java
-build_image: fnproject/fn-java-fdk-build:jdk11-1.0.149
-run_image: fnproject/fn-java-fdk:jre11-1.0.149
+build_image: fnproject/fn-java-fdk-build:jdk17-1.0-latest
+run_image: fnproject/fn-java-fdk:jre17-1.0-latest
 cmd: io.fnproject.demo.ThumbnailGeneratorFunction::handleRequest
 memory: 256
 timeout: 120
