@@ -2,7 +2,7 @@
  *
  * MIT License
  *
- * Copyright (c) 2022 PaoloB
+ * Copyright (c) 2022-23 PaoloB
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,14 +26,15 @@
 
 package io.fnproject.demo;
 
-import com.oracle.bmc.Region;
+import com.fnproject.fn.api.FnConfiguration;
+import com.fnproject.fn.api.RuntimeContext;
 
 import com.oracle.bmc.auth.ResourcePrincipalAuthenticationDetailsProvider;
-
 import com.oracle.bmc.objectstorage.ObjectStorage;
 import com.oracle.bmc.objectstorage.ObjectStorageClient;
 
 import com.oracle.bmc.objectstorage.model.CopyObjectDetails;
+import com.oracle.bmc.objectstorage.model.ObjectSummary;
 import com.oracle.bmc.objectstorage.model.WorkRequest;
 
 import com.oracle.bmc.objectstorage.requests.CopyObjectRequest;
@@ -53,7 +54,6 @@ import com.oracle.bmc.objectstorage.responses.GetWorkRequestResponse;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 
-import java.util.Collections;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -66,34 +66,69 @@ import javax.imageio.ImageIO;
 /**
  * Main class that implements the thumbnail generation function.
  *
- * @version 1.0 15 Jun 2022
+ * @version 1.1 29 Mar 2023
  * @author PaoloB
  */
 public class ThumbnailGeneratorFunction {
 
-    private ObjectStorage objStoreClient = null;
-    private Boolean debug = Boolean.valueOf(getEnvVar("DEBUG", "false")); // If true, the logging will be more verbose
+    // Variables to save the environment variables of the function
+    // TODO: add variables to func.yaml file, they can then be overridden
+    private Boolean debug;        // DEBUG - Enables debugging informations in log files
+    private String region;        // OCI_REGION - OCI region
+    private String nameSpace;     // OCI_NAMESPACE - Object Storage namespace
+    private String bucketIn;      // BUCKET_IN - Bucket that emits events when an image is uploaded
+    private String bucketOut;     // BUCKET_OUT - Bucket used to store the generated thumbnail and the original image
+    private String namePrefix;    // NAME_PREFIX - Prefix for the name of the generated thumbnail
+    private double scalingFactor; // SCALING_FACTOR - Factor to scale the image, it should be < 1 to scale down
+    private String imageFormat;   // IMAGE_FORMAT - Format of the generated thumbnail
+    // Variables to save the internal variables
+    private String ociResourcePrincipalVersion; // OCI_RESOURCE_PRINCIPAL_VERSION
+    private String ociResourcePrincipalRegion;  // OCI_RESOURCE_PRINCIPAL_REGION
+    private String ociResourcePrincipalRPST;    // OCI_RESOURCE_PRINCIPAL_RPST
+    private String ociResourcePrincipalPEM;     // OCI_RESOURCE_PRINCIPAL_PRIVATE_PEM
 
+    // Authentication using Resource Principal
     final ResourcePrincipalAuthenticationDetailsProvider provider = ResourcePrincipalAuthenticationDetailsProvider.builder().build();
-    final static String[] imageFormats = {"bmp", "gif", "jpeg", "jpg", "png", "tif", "tiff", "wbmp"};
+
+    // Supported image formats
+    static final String[] imageFormats = {"bmp", "gif", "jpeg", "jpg", "png", "tif", "tiff", "wbmp"};
+
+    // Generic error message
+    static final String ERRORMSG = "Error generating thumbnail, please check logs.";
 
     /**
-     * Default constructor
+     * Get the configuration fron the environment configured for the function
+     *
+     * @param ctx the runtime context of the function
      */
-    public ThumbnailGeneratorFunction() {
+    @FnConfiguration
+    public void config(RuntimeContext ctx) {
 
-        if (debug) {
-            System.err.println("OCI_RESOURCE_PRINCIPAL_VERSION " + System.getenv("OCI_RESOURCE_PRINCIPAL_VERSION"));
-            System.err.println("OCI_RESOURCE_PRINCIPAL_REGION " + System.getenv("OCI_RESOURCE_PRINCIPAL_REGION"));
-            System.err.println("OCI_RESOURCE_PRINCIPAL_RPST " + System.getenv("OCI_RESOURCE_PRINCIPAL_RPST"));
-            System.err.println("OCI_RESOURCE_PRINCIPAL_PRIVATE_PEM " + System.getenv("OCI_RESOURCE_PRINCIPAL_PRIVATE_PEM"));
-        }
+        // If true, the logging will be more verbose
+        debug = Boolean.valueOf(ctx.getConfigurationByKey("DEBUG").orElse("false"));
+        region = ctx.getConfigurationByKey("OCI_REGION").orElseThrow(() -> new RuntimeException("Missing configuration: OCI_REGION"));
+        nameSpace = ctx.getConfigurationByKey("OCI_NAMESPACE").orElseThrow(() -> new RuntimeException("Missing configuration: OCI_NAMESPACE"));
+        // Default value for BUCKET_IN is imageIn
+        bucketIn = ctx.getConfigurationByKey("BUCKET_IN").orElse("imageIn");
+        // Default value for BUCKET_OUT is imageOut
+        bucketOut = ctx.getConfigurationByKey("BUCKET_OUT").orElse("ImageOut");
+        // The default namePrefix is "scaled-"
+        namePrefix = ctx.getConfigurationByKey("NAME_PREFIX").orElse("scaled-");
+        // The default scalingFactor is 0.5 (50% of the original size)
+        scalingFactor = Double.parseDouble(ctx.getConfigurationByKey("SCALING_FACTOR").orElse("0.5"));
+        // imageFormat is one the following: BMP, GIF, JPEG, JPG, PNG, TIF, TIFF, WBMP, bmp, gif, jpeg, jpg, png, tif, tiff, wbmp.
+        // The default value is jpg
+        imageFormat = ctx.getConfigurationByKey("IMAGE_FORMAT").orElse("jpg");
+        imageFormat = imageFormat.toLowerCase();
 
-        try {
-            objStoreClient = new ObjectStorageClient(provider);
-        } catch (Throwable ex) {
-            System.err.println("Failed to instantiate ObjectStorage client - " + ex.getMessage());
-        }
+        // OCI_RESOURCE_PRINCIPAL_VERSION
+        ociResourcePrincipalVersion = ctx.getConfigurationByKey("OCI_RESOURCE_PRINCIPAL_VERSION").orElseThrow(() -> new RuntimeException("Missing configuration: OCI_RESOURCE_PRINCIPAL_VERSION"));
+        // OCI_RESOURCE_PRINCIPAL_REGION
+        ociResourcePrincipalRegion = ctx.getConfigurationByKey("OCI_RESOURCE_PRINCIPAL_REGION").orElseThrow(() -> new RuntimeException("Missing configuration: OCI_RESOURCE_PRINCIPAL_REGION"));
+        // OCI_RESOURCE_PRINCIPAL_RPST
+        ociResourcePrincipalRPST = ctx.getConfigurationByKey("OCI_RESOURCE_PRINCIPAL_RPST").orElseThrow(() -> new RuntimeException("Missing configuration: OCI_RESOURCE_PRINCIPAL_RPST"));
+        // OCI_RESOURCE_PRINCIPAL_PRIVATE_PEM
+        ociResourcePrincipalPEM = ctx.getConfigurationByKey("OCI_RESOURCE_PRINCIPAL_PRIVATE_PEM").orElseThrow(() -> new RuntimeException("Missing configuration: OCI_RESOURCE_PRINCIPAL_PRIVATE_PEM"));
 
     }
 
@@ -123,23 +158,6 @@ public class ThumbnailGeneratorFunction {
     }
 
     /**
-     * Get the value of an environment variable or the default value if the variable is not defined
-     *
-     * @param variable name of the environment variable
-     * @param defaultValue default value to be used if the variable is undefined
-     * @return the value or the default value of the variable
-     */
-    private String getEnvVar(String variable, String defaultValue) {
-
-        String value = System.getenv(variable);
-        if (value == null)
-            return defaultValue;
-        else
-            return value;
-
-    }
-
-    /**
      * Thumbnail generation function. It reads an image from a bucket defined in OCI Object Storage and then it creates a thumbnail
      * with a scaled size defined via environment variables. The result is copied to another bucket along with the original image.
      *
@@ -147,29 +165,36 @@ public class ThumbnailGeneratorFunction {
      */
     public String handleRequest() {
 
-        // Check if the OCI client is available, if not it exits with an error
-        if (objStoreClient == null) {
-            System.err.println("There was a problem creating the ObjectStorage Client object. Please check logs.");
-            return "Error generating thumbnail, please check logs.";
+        // Print out some configuration details for debugging purposes
+        if (Boolean.TRUE.equals(debug)) {
+            System.err.println("OCI_RESOURCE_PRINCIPAL_VERSION: " + ociResourcePrincipalVersion);
+            System.err.println("OCI_RESOURCE_PRINCIPAL_REGION: " + ociResourcePrincipalRegion);
+            System.err.println("OCI_RESOURCE_PRINCIPAL_RPST: " + ociResourcePrincipalRPST);
+            System.err.println("OCI_RESOURCE_PRINCIPAL_PRIVATE_PEM: " + ociResourcePrincipalPEM);
         }
 
-        // Reads the enviroment variables used to configure the OCI client and the image conversion engine
-        String region = getEnvVar("OCI_REGION", "");
-        String nameSpace = getEnvVar("OCI_NAMESPACE", "");
-        String bucketIn = getEnvVar("BUCKET_IN", "imageIn");
-        String bucketOut = getEnvVar("BUCKET_OUT", "ImageOut");
-        // If the OCI-related parameters are not defined the function cannot proceed
-        if ( region.isEmpty() || nameSpace.isEmpty() || bucketIn.isEmpty() || bucketOut.isEmpty() ) {
-            System.err.println("The required environment variables OCI_REGION, OCI_NAMESPACE, BUCKET_IN, BUCKET_OUT are not defined. Please configure them before proceeding.");
-            return "Error generating thumbnail, please check logs.";
+        // The client object used to access the object storage service
+        ObjectStorage objStorageClient = null;
+
+        // Create a client to access the Object Storage service
+        objStorageClient = ObjectStorageClient.builder().build(provider);
+
+        // Check if the OCI client is available, if not it exits with an error
+        if (objStorageClient == null) {
+            System.err.println("There was a problem creating the ObjectStorageClient object. Please check logs.");
+            return ERRORMSG;
         }
-        String namePrefix = getEnvVar("NAME_PREFIX", "scaled-"); // The default namePrefix is "scaled-"
-        double scalingFactor = Double.parseDouble(getEnvVar("SCALING_FACTOR", "0.5")); // The default scalingFactor is 0.5 (50% of the original size)
-        String imageFormat = getEnvVar(("IMAGE_FORMAT").toLowerCase(), "jpg"); // imageFormat is one the following: BMP, GIF, JPEG, JPG, PNG, TIF, TIFF, WBMP, bmp, gif, jpeg, jpg, png, tif, tiff, wbmp. The default value is jpg
+
+        // If the OCI-related parameters are not defined the function cannot proceed
+        if (region.isEmpty() || nameSpace.isEmpty() || bucketIn.isEmpty() || bucketOut.isEmpty()) {
+            System.err.println("The required environment variables OCI_REGION, OCI_NAMESPACE, BUCKET_IN, BUCKET_OUT are not defined. Please configure them before proceeding.");
+            return ERRORMSG;
+        }
+
         // Check if the thumbnail extension is supported, if not it exits with an error
-        if ( !Arrays.asList(imageFormats).contains(imageFormat) ) {
+        if (!Arrays.asList(imageFormats).contains(imageFormat)) {
             System.err.println("The format " + imageFormat + " specified for output images is not supported, please choose one among: bmp, gif, jpeg, jpg, png, tif, tiff, wbmp");
-            return "Error generating thumbnail, please check logs.";
+            return ERRORMSG;
         }
 
         List<String> objNames = null;
@@ -180,10 +205,10 @@ public class ThumbnailGeneratorFunction {
                                         .bucketName(bucketIn)
                                         .build();
 
-            ListObjectsResponse response = objStoreClient.listObjects(lor);
+            ListObjectsResponse response = objStorageClient.listObjects(lor);
 
             objNames = response.getListObjects().getObjects().stream()
-                            .map((objSummary) -> objSummary.getName())
+                            .map(ObjectSummary::getName)
                             .collect(Collectors.toList());
 
             objectName = objNames.stream()
@@ -192,7 +217,7 @@ public class ThumbnailGeneratorFunction {
                             .orElse(null);
 
             // Read file from bucketIn
-            GetObjectResponse getResponse = objStoreClient.getObject(
+            GetObjectResponse getResponse = objStorageClient.getObject(
                                                 GetObjectRequest.builder()
                                                     .namespaceName(nameSpace)
                                                     .bucketName(bucketIn)
@@ -212,7 +237,7 @@ public class ThumbnailGeneratorFunction {
 
             // Put file to bucketOut
             ByteArrayInputStream is = new ByteArrayInputStream(os.toByteArray());
-            PutObjectResponse putResponse = objStoreClient.putObject(
+            PutObjectResponse putResponse = objStorageClient.putObject(
                                                 PutObjectRequest.builder()
                                                     .namespaceName(nameSpace)
                                                     .bucketName(bucketOut)
@@ -221,13 +246,19 @@ public class ThumbnailGeneratorFunction {
                                                     .build()
                                             );
 
+            if (putResponse == null) {
+                System.err.println("Error creating file: " + namePrefix + objectName);
+                return ERRORMSG;
+            } else {
+                System.err.println("Created file: " + namePrefix + objectName);
+            }
+
             is.close();
             os.close();
 
-            System.err.println("Created file: " + namePrefix + objectName);
-
             // To use the CopyObject APIs you need to allow Object Storage to access the tenancy
-            CopyObjectResponse copyOriginalImage = objStoreClient.copyObject(
+            // Copy the original image along with the thumbnail in bucketOut
+            CopyObjectResponse copyOriginalImage = objStorageClient.copyObject(
                                                         CopyObjectRequest.builder()
                                                             .namespaceName(nameSpace)
                                                             .bucketName(bucketIn)
@@ -243,7 +274,7 @@ public class ThumbnailGeneratorFunction {
                                                             .build()
                                                     );
 
-            GetWorkRequestResponse getWorkRequestResponse = objStoreClient.getWaiters().forWorkRequest(
+            GetWorkRequestResponse getWorkRequestResponse = objStorageClient.getWaiters().forWorkRequest(
                                                                 GetWorkRequestRequest.builder()
                                                                     .workRequestId(copyOriginalImage.getOpcWorkRequestId())
                                                                     .build()
@@ -254,23 +285,29 @@ public class ThumbnailGeneratorFunction {
             if (status == WorkRequest.Status.Completed) {
                 System.err.println("Copied original file to destination: " + objectName);
                 // Delete the source object only after the successful copy of the file
-                DeleteObjectResponse deleteProcessedImage = objStoreClient.deleteObject(
-                    DeleteObjectRequest.builder()
-                        .namespaceName(nameSpace)
-                        .bucketName(bucketIn)
-                        .objectName(objectName)
-                        .build()
-                );
+                DeleteObjectResponse deleteProcessedImage = objStorageClient.deleteObject(
+                                                                                DeleteObjectRequest.builder()
+                                                                                    .namespaceName(nameSpace)
+                                                                                    .bucketName(bucketIn)
+                                                                                    .objectName(objectName)
+                                                                                    .build()
+                                                                            );
+                if (deleteProcessedImage == null) {
+                    System.err.println("Error deleting file: " + objectName);
+                    return ERRORMSG;
+                } else {
+                    System.err.println("Deleted file: " + objectName);
+                }
             }
 
-            objStoreClient.close();
+            objStorageClient.close();
 
             System.err.println("Thumbnail generation completed, please see the output in bucket " + bucketOut);
             return "Thumbnail generation completed, please see the output in bucket " + bucketOut;
 
-        } catch (Throwable e) {
+        } catch (Exception e) {
             System.err.println("Error during thumbnail generation: " + e.getMessage());
-            return "Error during thumbnail generation, please check logs.";
+            return ERRORMSG;
         }
 
     }
