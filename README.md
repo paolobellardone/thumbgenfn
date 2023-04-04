@@ -6,7 +6,7 @@ A serverless application that reads an image and then renders a scaled version u
 
 First of all you need an OCI tenancy and a user member of a group having the right policies to use Functions, Object Storage and Events. You need also to authorize Object Storage service to manage your object and buckets in order to use the CopyObject APIs. Then you need to follow these steps:
 
-1. Create a dynamic grooup to give functions in a specific compartment acceess to object storage
+1. Create a dynamic group to give functions in a specific compartment acceess to object storage
 
     > ALL {resource.type = 'fnfunc', resource.compartment.id = 'ocid1.compartment.oc1.. ...'}
 
@@ -38,7 +38,7 @@ First of all you need an OCI tenancy and a user member of a group having the rig
     1. See [Configure and deploy the function](#configure-and-deploy-the-function)
 7. Configure the environment used to execute the function by specifying the variables needed to run the code
     1. See [Environment configuration](#environment-configuration)
-8. Create a rule in the Events service to listen to events emitted by Object Storage and to activate the function to scale the image down
+8. Create a rule in the Events service to listen to events emitted by Object Storage and to activate the function to scale down the image
     1. Event type: *Object - Create*
     2. Attributes: *bucketName = imageIn* (this is the name specified in 3 and 2.2)
 

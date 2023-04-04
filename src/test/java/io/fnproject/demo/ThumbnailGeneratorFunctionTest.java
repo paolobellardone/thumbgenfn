@@ -37,7 +37,7 @@ public class ThumbnailGeneratorFunctionTest {
     public final FnTestingRule testing = FnTestingRule.createDefault();
 
     @Test
-    public void shouldReturnGreeting() {
+    public void shouldReturnSomething() {
         // TODO: implement some kind of testing here...
         assertTrue(true);
     }
