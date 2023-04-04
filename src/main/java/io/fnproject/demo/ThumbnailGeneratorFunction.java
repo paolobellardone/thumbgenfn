@@ -64,6 +64,9 @@ import java.awt.Graphics2D;
 
 import javax.imageio.ImageIO;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  * Main class that implements the thumbnail generation function.
  *
@@ -168,12 +171,15 @@ public class ThumbnailGeneratorFunction {
      */
     public String handleRequest() {
 
+        // Create a logger instance to print messages to System.err
+        Logger logger = LoggerFactory.getLogger(ThumbnailGeneratorFunction.class);
+
         // Print out some configuration details for debugging purposes
         if (Boolean.TRUE.equals(debug)) {
-            System.err.println("OCI_RESOURCE_PRINCIPAL_VERSION: " + ociResourcePrincipalVersion);
-            System.err.println("OCI_RESOURCE_PRINCIPAL_REGION: " + ociResourcePrincipalRegion);
-            System.err.println("OCI_RESOURCE_PRINCIPAL_RPST: " + ociResourcePrincipalRPST);
-            System.err.println("OCI_RESOURCE_PRINCIPAL_PRIVATE_PEM: " + ociResourcePrincipalPEM);
+            logger.info("OCI_RESOURCE_PRINCIPAL_VERSION: {}", ociResourcePrincipalVersion);
+            logger.info("OCI_RESOURCE_PRINCIPAL_REGION: {}", ociResourcePrincipalRegion);
+            logger.info("OCI_RESOURCE_PRINCIPAL_RPST: {}", ociResourcePrincipalRPST);
+            logger.info("OCI_RESOURCE_PRINCIPAL_PRIVATE_PEM: {}", ociResourcePrincipalPEM);
         }
 
         // Create a client to access the Object Storage service
@@ -182,19 +188,19 @@ public class ThumbnailGeneratorFunction {
 
         // Check if the OCI client is available, if not it exits with an error
         if (objStorageClient == null) {
-            System.err.println("There was a problem creating the ObjectStorageClient object. Please check logs.");
+            logger.error("There was a problem creating the ObjectStorageClient object. Please check logs.");
             return ERRORMSG;
         }
 
         // If the OCI-related parameters are not defined the function cannot proceed
         if (region.isEmpty() || nameSpace.isEmpty() || bucketIn.isEmpty() || bucketOut.isEmpty()) {
-            System.err.println("The required environment variables OCI_REGION, OCI_NAMESPACE, BUCKET_IN, BUCKET_OUT are not defined. Please configure them before proceeding.");
+            logger.error("The required environment variables OCI_REGION, OCI_NAMESPACE, BUCKET_IN, BUCKET_OUT are not defined. Please configure them before proceeding.");
             return ERRORMSG;
         }
 
         // Check if the thumbnail extension is supported, if not it exits with an error
         if (!Arrays.asList(imageFormats).contains(imageFormat)) {
-            System.err.println("The format " + imageFormat + " specified for output images is not supported, please choose one among: bmp, gif, jpeg, jpg, png, tif, tiff, wbmp");
+            logger.error("The format {} specified for output images is not supported, please choose one among: bmp, gif, jpeg, jpg, png, tif, tiff, wbmp", imageFormat);
             return ERRORMSG;
         }
 
@@ -207,7 +213,7 @@ public class ThumbnailGeneratorFunction {
             List<String> filesNames = listObjectsResponse.getListObjects().getObjects().stream().map(ObjectSummary::getName).collect(Collectors.toList());
 
             for (String fileName : filesNames) {
-                System.err.println("Processing file: " + fileName);
+                logger.info("Processing file: {}", fileName);
 
                 // Read file from bucketIn
                 GetObjectResponse getObjectResponse = objStorageClient.getObject(GetObjectRequest.builder()
@@ -221,7 +227,7 @@ public class ThumbnailGeneratorFunction {
                 BufferedImage outputImage = scaleImage(originalImage, scalingFactor, scalingFactor);
                 ImageIO.write(outputImage, imageFormat, os);
 
-                System.err.println("Finished processing file: " + fileName);
+                logger.info("Finished processing file: {}", fileName);
 
                 // Put file to bucketOut
                 ByteArrayInputStream is = new ByteArrayInputStream(os.toByteArray());
@@ -233,10 +239,10 @@ public class ThumbnailGeneratorFunction {
                                                                                     .build());
 
                 if (putObjectResponse == null) {
-                    System.err.println("Error creating thumbnail file: " + namePrefix + fileName);
+                    logger.error("Error creating thumbnail file: {}{}", namePrefix, fileName);
                     return ERRORMSG;
                 } else {
-                    System.err.println("Created thumbnail file: " + namePrefix + fileName);
+                    logger.info("Created thumbnail file: {}{}", namePrefix, fileName);
                 }
 
                 is.close();
@@ -265,19 +271,20 @@ public class ThumbnailGeneratorFunction {
                 WorkRequest.Status workRequestStatus = getWorkRequestResponse.getWorkRequest().getStatus();
 
                 if (workRequestStatus == WorkRequest.Status.Completed) {
-                    System.err.println("Copied original file to destination: " + fileName);
+                    logger.info("Copied original file to destination: {}", fileName);
 
                     // Delete the source object only after the successful copy of the file
-                    DeleteObjectResponse deleteProcessedImage = objStorageClient.deleteObject(DeleteObjectRequest.builder()
-                                                                                                .namespaceName(nameSpace)
-                                                                                                .bucketName(bucketIn)
-                                                                                                .objectName(fileName)
-                                                                                                .build());
+                    final DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
+                                                                        .namespaceName(nameSpace)
+                                                                        .bucketName(bucketIn)
+                                                                        .objectName(fileName)
+                                                                        .build();
+                    DeleteObjectResponse deleteProcessedImage = objStorageClient.deleteObject(deleteObjectRequest);
                     if (deleteProcessedImage == null) {
-                        System.err.println("Error deleting file: " + fileName);
+                        logger.error("Error deleting file: {}", fileName);
                         return ERRORMSG;
                     } else {
-                        System.err.println("Deleted file: " + fileName);
+                        logger.info("Deleted file: {}", fileName);
                     }
                 }
 
@@ -285,11 +292,11 @@ public class ThumbnailGeneratorFunction {
 
             objStorageClient.close();
 
-            System.err.println("Thumbnail generation completed, please see the output in bucket " + bucketOut);
+            logger.info("Thumbnail generation completed, please see the output in bucket {}", bucketOut);
             return "Thumbnail generation completed, please see the output in bucket " + bucketOut;
 
         } catch (Exception e) {
-            System.err.println("Error during thumbnail generation: " + e.getMessage());
+            logger.error("Error during thumbnail generation: {}", e.getMessage());
             return ERRORMSG;
         }
 
