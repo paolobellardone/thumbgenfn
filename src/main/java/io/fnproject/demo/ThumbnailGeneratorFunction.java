@@ -26,6 +26,7 @@
 
 package io.fnproject.demo;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fnproject.fn.api.FnConfiguration;
 import com.fnproject.fn.api.RuntimeContext;
 
@@ -35,30 +36,24 @@ import com.oracle.bmc.objectstorage.ObjectStorage;
 import com.oracle.bmc.objectstorage.ObjectStorageClient;
 
 import com.oracle.bmc.objectstorage.model.CopyObjectDetails;
-import com.oracle.bmc.objectstorage.model.ObjectSummary;
 import com.oracle.bmc.objectstorage.model.WorkRequest;
 
 import com.oracle.bmc.objectstorage.requests.CopyObjectRequest;
 import com.oracle.bmc.objectstorage.requests.DeleteObjectRequest;
 import com.oracle.bmc.objectstorage.requests.GetObjectRequest;
 import com.oracle.bmc.objectstorage.requests.PutObjectRequest;
-import com.oracle.bmc.objectstorage.requests.ListObjectsRequest;
 import com.oracle.bmc.objectstorage.requests.GetWorkRequestRequest;
 
 import com.oracle.bmc.objectstorage.responses.CopyObjectResponse;
 import com.oracle.bmc.objectstorage.responses.DeleteObjectResponse;
 import com.oracle.bmc.objectstorage.responses.GetObjectResponse;
 import com.oracle.bmc.objectstorage.responses.PutObjectResponse;
-import com.oracle.bmc.objectstorage.responses.ListObjectsResponse;
 import com.oracle.bmc.objectstorage.responses.GetWorkRequestResponse;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 
 import java.util.Arrays;
-import java.util.List;
-import java.util.stream.Collectors;
-
 import java.awt.image.BufferedImage;
 import java.awt.Graphics2D;
 
@@ -70,7 +65,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Main class that implements the thumbnail generation function.
  *
- * @version 1.3 4 Apr 2023
+ * @version 1.5 5 Apr 2023
  * @author PaoloB
  */
 public class ThumbnailGeneratorFunction {
@@ -167,9 +162,11 @@ public class ThumbnailGeneratorFunction {
      * with a scaled size defined via environment variables. The result is copied to
      * another bucket along with the original image.
      *
+     * @param ctx          Oracle Functions runtime context
+     * @param eventPayload Oracle Events payload passed to function
      * @return a message with the result of the operation invoked
      */
-    public String handleRequest() {
+    public String handleRequest(RuntimeContext ctx, String eventPayload) {
 
         // Create a logger instance to print messages to System.err
         Logger logger = LoggerFactory.getLogger(ThumbnailGeneratorFunction.class);
@@ -204,90 +201,84 @@ public class ThumbnailGeneratorFunction {
             return ERRORMSG;
         }
 
-        // Generate the thumbnails for all the images in the input bucket
+        // Generate the thumbnail for the image uploaded into input bucket
         try {
-            ListObjectsRequest listObjectsRequest = ListObjectsRequest.builder().namespaceName(nameSpace).bucketName(bucketIn).build();
-            ListObjectsResponse listObjectsResponse = objStorageClient.listObjects(listObjectsRequest);
 
-            // List all the elements inside the bucket bucketName
-            List<String> filesNames = listObjectsResponse.getListObjects().getObjects().stream().map(ObjectSummary::getName).collect(Collectors.toList());
+            ObjectMapper mapper = new ObjectMapper();
+            ObjectStorageCloudEvent osCloudEvent = mapper.readValue(eventPayload, ObjectStorageCloudEvent.class);
+            String fileName = osCloudEvent.getData().get("resourceName").toString();
 
-            for (String fileName : filesNames) {
-                logger.info("Processing file: {}", fileName);
+            // Read file from bucketIn
+            GetObjectResponse getObjectResponse = objStorageClient.getObject(GetObjectRequest.builder()
+                                                                                .namespaceName(nameSpace)
+                                                                                .bucketName(bucketIn)
+                                                                                .objectName(fileName)
+                                                                                .build());
+            // Generate the thumbnail
+            ByteArrayOutputStream os = new ByteArrayOutputStream();
+            BufferedImage originalImage = ImageIO.read(getObjectResponse.getInputStream());
+            BufferedImage outputImage = scaleImage(originalImage, scalingFactor, scalingFactor);
+            ImageIO.write(outputImage, imageFormat, os);
 
-                // Read file from bucketIn
-                GetObjectResponse getObjectResponse = objStorageClient.getObject(GetObjectRequest.builder()
-                                                                                    .namespaceName(nameSpace)
-                                                                                    .bucketName(bucketIn)
-                                                                                    .objectName(fileName)
-                                                                                    .build());
-                // Generate the thumbnail
-                ByteArrayOutputStream os = new ByteArrayOutputStream();
-                BufferedImage originalImage = ImageIO.read(getObjectResponse.getInputStream());
-                BufferedImage outputImage = scaleImage(originalImage, scalingFactor, scalingFactor);
-                ImageIO.write(outputImage, imageFormat, os);
+            logger.info("Finished processing file: {}", fileName);
 
-                logger.info("Finished processing file: {}", fileName);
+            // Put file to bucketOut
+            ByteArrayInputStream is = new ByteArrayInputStream(os.toByteArray());
+            PutObjectResponse putObjectResponse = objStorageClient.putObject(PutObjectRequest.builder()
+                                                                                .namespaceName(nameSpace)
+                                                                                .bucketName(bucketOut)
+                                                                                .objectName(namePrefix + fileName)
+                                                                                .putObjectBody(is)
+                                                                                .build());
 
-                // Put file to bucketOut
-                ByteArrayInputStream is = new ByteArrayInputStream(os.toByteArray());
-                PutObjectResponse putObjectResponse = objStorageClient.putObject(PutObjectRequest.builder()
-                                                                                    .namespaceName(nameSpace)
-                                                                                    .bucketName(bucketOut)
-                                                                                    .objectName(namePrefix + fileName)
-                                                                                    .putObjectBody(is)
-                                                                                    .build());
+            if (putObjectResponse == null) {
+                logger.error("Error creating thumbnail file: {}{}", namePrefix, fileName);
+                return ERRORMSG;
+            } else {
+                logger.info("Created thumbnail file: {}{}", namePrefix, fileName);
+            }
 
-                if (putObjectResponse == null) {
-                    logger.error("Error creating thumbnail file: {}{}", namePrefix, fileName);
+            is.close();
+            os.close();
+
+            // To use the CopyObject APIs you need to allow Object Storage to access the tenancy
+            // Copy the original image along with the thumbnail in bucketOut
+            CopyObjectResponse copyOriginalImage = objStorageClient.copyObject(CopyObjectRequest.builder()
+                                                                                .namespaceName(nameSpace)
+                                                                                .bucketName(bucketIn)
+                                                                                .copyObjectDetails(CopyObjectDetails.builder()
+                                                                                                    .sourceObjectName(fileName)
+                                                                                                    .destinationRegion(region)
+                                                                                                    .destinationNamespace(nameSpace)
+                                                                                                    .destinationBucket(bucketOut)
+                                                                                                    .destinationObjectName(fileName)
+                                                                                                    .build())
+                                                                                .build());
+
+            // The call is asynchronous, wait until it is finished
+            GetWorkRequestResponse getWorkRequestResponse = objStorageClient.getWaiters().forWorkRequest(
+                                                                                            GetWorkRequestRequest.builder()
+                                                                                                .workRequestId(copyOriginalImage.getOpcWorkRequestId())
+                                                                                            .build())
+                                                                                          .execute();
+            WorkRequest.Status workRequestStatus = getWorkRequestResponse.getWorkRequest().getStatus();
+
+            if (workRequestStatus == WorkRequest.Status.Completed) {
+                logger.info("Copied original file to destination: {}", fileName);
+
+                // Delete the source object only after the successful copy of the file
+                final DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
+                                                                    .namespaceName(nameSpace)
+                                                                    .bucketName(bucketIn)
+                                                                    .objectName(fileName)
+                                                                    .build();
+                DeleteObjectResponse deleteProcessedImage = objStorageClient.deleteObject(deleteObjectRequest);
+                if (deleteProcessedImage == null) {
+                    logger.error("Error deleting file: {}", fileName);
                     return ERRORMSG;
                 } else {
-                    logger.info("Created thumbnail file: {}{}", namePrefix, fileName);
+                    logger.info("Deleted file: {}", fileName);
                 }
-
-                is.close();
-                os.close();
-
-                // To use the CopyObject APIs you need to allow Object Storage to access the tenancy
-                // Copy the original image along with the thumbnail in bucketOut
-                CopyObjectResponse copyOriginalImage = objStorageClient.copyObject(CopyObjectRequest.builder()
-                                                                                    .namespaceName(nameSpace)
-                                                                                    .bucketName(bucketIn)
-                                                                                    .copyObjectDetails(CopyObjectDetails.builder()
-                                                                                                        .sourceObjectName(fileName)
-                                                                                                        .destinationRegion(region)
-                                                                                                        .destinationNamespace(nameSpace)
-                                                                                                        .destinationBucket(bucketOut)
-                                                                                                        .destinationObjectName(fileName)
-                                                                                                        .build())
-                                                                                    .build());
-
-                // The call is asynchronous, wait until it is finished
-                GetWorkRequestResponse getWorkRequestResponse = objStorageClient.getWaiters().forWorkRequest(
-                                                                                                GetWorkRequestRequest.builder()
-                                                                                                    .workRequestId(copyOriginalImage.getOpcWorkRequestId())
-                                                                                                .build())
-                                                                                              .execute();
-                WorkRequest.Status workRequestStatus = getWorkRequestResponse.getWorkRequest().getStatus();
-
-                if (workRequestStatus == WorkRequest.Status.Completed) {
-                    logger.info("Copied original file to destination: {}", fileName);
-
-                    // Delete the source object only after the successful copy of the file
-                    final DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
-                                                                        .namespaceName(nameSpace)
-                                                                        .bucketName(bucketIn)
-                                                                        .objectName(fileName)
-                                                                        .build();
-                    DeleteObjectResponse deleteProcessedImage = objStorageClient.deleteObject(deleteObjectRequest);
-                    if (deleteProcessedImage == null) {
-                        logger.error("Error deleting file: {}", fileName);
-                        return ERRORMSG;
-                    } else {
-                        logger.info("Deleted file: {}", fileName);
-                    }
-                }
-
             }
 
             objStorageClient.close();
