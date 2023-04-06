@@ -27,23 +27,20 @@
 package io.fnproject.demo;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import com.fnproject.fn.api.FnConfiguration;
 import com.fnproject.fn.api.RuntimeContext;
 
 import com.oracle.bmc.auth.ResourcePrincipalAuthenticationDetailsProvider;
-
 import com.oracle.bmc.objectstorage.ObjectStorage;
 import com.oracle.bmc.objectstorage.ObjectStorageClient;
-
 import com.oracle.bmc.objectstorage.model.CopyObjectDetails;
 import com.oracle.bmc.objectstorage.model.WorkRequest;
-
 import com.oracle.bmc.objectstorage.requests.CopyObjectRequest;
 import com.oracle.bmc.objectstorage.requests.DeleteObjectRequest;
 import com.oracle.bmc.objectstorage.requests.GetObjectRequest;
 import com.oracle.bmc.objectstorage.requests.PutObjectRequest;
 import com.oracle.bmc.objectstorage.requests.GetWorkRequestRequest;
-
 import com.oracle.bmc.objectstorage.responses.CopyObjectResponse;
 import com.oracle.bmc.objectstorage.responses.DeleteObjectResponse;
 import com.oracle.bmc.objectstorage.responses.GetObjectResponse;
@@ -52,7 +49,6 @@ import com.oracle.bmc.objectstorage.responses.GetWorkRequestResponse;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-
 import java.util.Arrays;
 import java.awt.image.BufferedImage;
 import java.awt.Graphics2D;
@@ -208,6 +204,8 @@ public class ThumbnailGeneratorFunction {
             ObjectStorageCloudEvent osCloudEvent = mapper.readValue(eventPayload, ObjectStorageCloudEvent.class);
             String fileName = osCloudEvent.getData().get("resourceName").toString();
 
+            logger.info("Processing file: {}", fileName);
+
             // Read file from bucketIn
             GetObjectResponse getObjectResponse = objStorageClient.getObject(GetObjectRequest.builder()
                                                                                 .namespaceName(nameSpace)
@@ -219,8 +217,6 @@ public class ThumbnailGeneratorFunction {
             BufferedImage originalImage = ImageIO.read(getObjectResponse.getInputStream());
             BufferedImage outputImage = scaleImage(originalImage, scalingFactor, scalingFactor);
             ImageIO.write(outputImage, imageFormat, os);
-
-            logger.info("Finished processing file: {}", fileName);
 
             // Put file to bucketOut
             ByteArrayInputStream is = new ByteArrayInputStream(os.toByteArray());
@@ -237,6 +233,8 @@ public class ThumbnailGeneratorFunction {
             } else {
                 logger.info("Created thumbnail file: {}{}", namePrefix, fileName);
             }
+
+            logger.info("Finished processing file: {}", fileName);
 
             is.close();
             os.close();

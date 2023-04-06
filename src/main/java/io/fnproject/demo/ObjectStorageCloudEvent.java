@@ -24,7 +24,7 @@
  *
  */
 
- package io.fnproject.demo;
+package io.fnproject.demo;
 
 import java.util.Map;
 
