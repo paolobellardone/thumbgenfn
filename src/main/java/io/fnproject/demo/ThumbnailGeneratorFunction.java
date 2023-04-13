@@ -47,11 +47,11 @@ import com.oracle.bmc.objectstorage.responses.GetObjectResponse;
 import com.oracle.bmc.objectstorage.responses.PutObjectResponse;
 import com.oracle.bmc.objectstorage.responses.GetWorkRequestResponse;
 
+import java.awt.image.BufferedImage;
+import java.awt.Graphics2D;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.Arrays;
-import java.awt.image.BufferedImage;
-import java.awt.Graphics2D;
 
 import javax.imageio.ImageIO;
 
@@ -61,7 +61,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Main class that implements the thumbnail generation function.
  *
- * @version 1.5 5 Apr 2023
+ * @version 1.6 12 Apr 2023
  * @author PaoloB
  */
 public class ThumbnailGeneratorFunction {
@@ -78,9 +78,9 @@ public class ThumbnailGeneratorFunction {
 
     // Variables to save the internal environment variables
     private String ociResourcePrincipalVersion; // OCI_RESOURCE_PRINCIPAL_VERSION
-    private String ociResourcePrincipalRegion; // OCI_RESOURCE_PRINCIPAL_REGION
-    private String ociResourcePrincipalRPST; // OCI_RESOURCE_PRINCIPAL_RPST
-    private String ociResourcePrincipalPEM; // OCI_RESOURCE_PRINCIPAL_PRIVATE_PEM
+    private String ociResourcePrincipalRegion;  // OCI_RESOURCE_PRINCIPAL_REGION
+    private String ociResourcePrincipalRPST;    // OCI_RESOURCE_PRINCIPAL_RPST
+    private String ociResourcePrincipalPEM;     // OCI_RESOURCE_PRINCIPAL_PRIVATE_PEM
 
     // Authentication using Resource Principal
     final ResourcePrincipalAuthenticationDetailsProvider provider = ResourcePrincipalAuthenticationDetailsProvider.builder().build();

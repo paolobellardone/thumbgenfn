@@ -1,6 +1,6 @@
 schema_version: 20180708
 name: thumbgenfn
-version: 0.0.171
+version: 0.0.181
 runtime: java
 build_image: fnproject/fn-java-fdk-build:jdk17-1.0-latest
 run_image: fnproject/fn-java-fdk:jre17-1.0-latest
@@ -10,7 +10,7 @@ timeout: 120
 config:
   BUCKET_IN: imageIn
   BUCKET_OUT: imageOut
-  DEBUG: "false"
+  DEBUG: "true"
   IMAGE_FORMAT: jpg
   NAME_PREFIX: scaled-
   SCALING_FACTOR: "0.5"
