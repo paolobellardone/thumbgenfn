@@ -54,8 +54,10 @@ steps:
     command: |
       export BUILDRUN_HASH=`echo ${OCI_BUILD_RUN_ID} | rev | cut -c 1-7`
       echo "BUILDRUN_HASH: " $BUILDRUN_HASH
+      echo "$FUNCTION_VERSION: " $FUNCTION_VERSION
+      echo "${FUNCTION_VERSION} before: " ${FUNCTION_VERSION}
       export FUNCTION_VERSION=`echo ${FUNCTION_VERSION}`
-      echo "FUNCTION_VERSION: " $FUNCTION_VERSION
+      echo "FUNCTION_VERSION after: " $FUNCTION_VERSION
 
   - type: Command
     name: "Build the function image"
