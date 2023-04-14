@@ -54,7 +54,7 @@ steps:
     command: |
       export BUILDRUN_HASH=`echo ${OCI_BUILD_RUN_ID} | rev | cut -c 1-7`
       echo "BUILDRUN_HASH: " $BUILDRUN_HASH
-      export FUNCTION_VERSION=$FUNCTION_VERSION
+      export FUNCTION_VERSION=${FUNCTION_VERSION}
       echo "FUNCTION_VERSION: " $FUNCTION_VERSION
 
   - type: Command
@@ -73,4 +73,4 @@ steps:
 outputArtifacts:
   - name: function_image
     type: DOCKER_IMAGE
-    location: thumbgenfn:$FUNCTION_VERSION
+    location: thumbgenfn:${FUNCTION_VERSION}
