@@ -63,6 +63,7 @@ steps:
     command: |
       cd ${OCI_PRIMARY_SOURCE_DIR}
       fn build --verbose
+      image=$(docker images | grep thumbgenfn | awk -F ' ' '{print $3}') ; docker tag $image thumbgenfn
     onFailure:
       - type: Command
         command: |
