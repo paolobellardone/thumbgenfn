@@ -45,7 +45,6 @@ env:
     - BUILDRUN_HASH
     - BUILD_RESULT
     - FUNCTION_VERSION
-    - functionVersion
 
 steps:
   - type: Command
@@ -56,9 +55,6 @@ steps:
       echo "BUILDRUN_HASH: " $BUILDRUN_HASH
       export FUNCTION_VERSION=`echo ${functionVersion}`
       echo "FUNCTION_VERSION: " $FUNCTION_VERSION
-      echo "functionVersion: " ${functionVersion}
-      export functionVersion=1.0.1
-      echo "functionVersion: " ${functionVersion}
 
   - type: Command
     name: "Build the function image"
