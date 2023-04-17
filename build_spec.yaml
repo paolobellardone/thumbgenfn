@@ -62,7 +62,6 @@ steps:
     command: |
       cd ${OCI_PRIMARY_SOURCE_DIR}
       fn build --verbose
-      image=$(docker images | grep thumbgenfn | awk -F ' ' '{print $3}') ; docker tag $image thumbgenfn
       export BUILD_RESULT=SUCCESS
     onFailure:
       - type: Command
@@ -74,4 +73,4 @@ steps:
 outputArtifacts:
   - name: function_image
     type: DOCKER_IMAGE
-    location: thumbgenfn:latest
+    location: thumbgenfn
