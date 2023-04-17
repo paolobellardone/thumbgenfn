@@ -50,14 +50,11 @@ steps:
   - type: Command
     name: "Setup the environment variables"
     timeoutInSeconds: 120
-    # TODO: define a build parameter to set the image version
     command: |
       export BUILDRUN_HASH=`echo ${OCI_BUILD_RUN_ID} | rev | cut -c 1-7`
       echo "BUILDRUN_HASH: " $BUILDRUN_HASH
-      echo "$FUNCTION_VERSION: " $FUNCTION_VERSION
-      echo "${FUNCTION_VERSION} before: " ${FUNCTION_VERSION}
-      export FUNCTION_VERSION=`echo ${FUNCTION_VERSION}`
-      echo "FUNCTION_VERSION after: " $FUNCTION_VERSION
+      export FUNCTION_VERSION=`echo ${functionVersion}`
+      echo "FUNCTION_VERSION: " $FUNCTION_VERSION
 
   - type: Command
     name: "Build the function image"
@@ -66,10 +63,11 @@ steps:
       cd ${OCI_PRIMARY_SOURCE_DIR}
       fn build --verbose
       image=$(docker images | grep thumbgenfn | awk -F ' ' '{print $3}') ; docker tag $image thumbgenfn
+      export BUILD_RESULT=SUCCESS
     onFailure:
       - type: Command
         command: |
-          BUILD_RESULT=FAILURE
+          export BUILD_RESULT=FAILURE
           echo "Error during the build phase"
         timeoutInSeconds: 400
 
