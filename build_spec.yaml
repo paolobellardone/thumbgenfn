@@ -53,7 +53,6 @@ steps:
     command: |
       export BUILDRUN_HASH=`echo ${OCI_BUILD_RUN_ID} | rev | cut -c 1-7`
       echo "BUILDRUN_HASH: " $BUILDRUN_HASH
-      export functionVersion=1.0.1
       export FUNCTION_VERSION=`echo ${functionVersion}`
       echo "FUNCTION_VERSION: " $FUNCTION_VERSION
 
