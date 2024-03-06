@@ -113,7 +113,7 @@ The environment variables needed to pass the parameters to the function can be s
 
 MIT License
 
-Copyright (c) 2022-23 PaoloB
+Copyright (c) 2022-24 PaoloB
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
