@@ -36,9 +36,9 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <fdk.version>1.0.187</fdk.version>
-        <oci.sdk.version>3.41.1</oci.sdk.version>
-        <jackson.version>2.16.2</jackson.version>
+        <fdk.version>1.0.217</fdk.version>
+        <oci.sdk.version>3.76.1</oci.sdk.version>
+        <jackson.version>2.20.1</jackson.version>
         <function.version>1.0.0</function.version>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
@@ -92,7 +92,7 @@
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>
-            <version>5.10.2</version>
+            <version>5.14.1</version>
             <scope>test</scope>
         </dependency>
         <dependency>
