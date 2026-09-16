@@ -2,8 +2,8 @@ schema_version: 20180708
 name: thumbgenfn
 version: 1.0.0
 runtime: java
-build_image: fnproject/fn-java-fdk-build:jdk17-1.0-latest
-run_image: fnproject/fn-java-fdk:jre17-1.0-latest
+build_image: container-registry.oracle.com/oci_functions/fn-java-fdk-build:jdk21-1.1.22
+run_image: container-registry.oracle.com/oci_functions/fn-java-fdk:jre21-1.1.22
 cmd: io.fnproject.demo.ThumbnailGeneratorFunction::handleRequest
 memory: 256
 timeout: 120
