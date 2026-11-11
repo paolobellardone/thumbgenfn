@@ -55,12 +55,13 @@ import com.oracle.bmc.objectstorage.responses.GetObjectResponse;
 import com.oracle.bmc.objectstorage.responses.GetWorkRequestResponse;
 import com.oracle.bmc.objectstorage.responses.PutObjectResponse;
 
-import tools.jackson.databind.ObjectMapper;
+import jakarta.json.bind.Jsonb;
+import jakarta.json.bind.JsonbBuilder;
 
 /**
  * Main class that implements the thumbnail generation function.
  *
- * @version 1.6 12 Apr 2023
+ * @version 1.7 11 Nov 2026
  * @author PaoloB
  */
 public class ThumbnailGeneratorFunction {
@@ -198,9 +199,13 @@ public class ThumbnailGeneratorFunction {
 
         // Generate the thumbnail for the image uploaded into input bucket
         try {
+            // Unmarshal the payload into a Java class
+            ObjectStorageCloudEvent osCloudEvent;
+            try (Jsonb jsonb = JsonbBuilder.create()) {
+                osCloudEvent = jsonb.fromJson(eventPayload, ObjectStorageCloudEvent.class);
+            }
 
-            ObjectMapper mapper = new ObjectMapper();
-            ObjectStorageCloudEvent osCloudEvent = mapper.readValue(eventPayload, ObjectStorageCloudEvent.class);
+            // Get the filename from the payload passed by Oracle Events
             String fileName = osCloudEvent.getData().get("resourceName").toString();
 
             logger.info("Processing file: {}", fileName);
