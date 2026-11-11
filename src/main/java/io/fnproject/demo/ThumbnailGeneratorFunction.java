@@ -26,29 +26,8 @@
 
 package io.fnproject.demo;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import com.fnproject.fn.api.FnConfiguration;
-import com.fnproject.fn.api.RuntimeContext;
-
-import com.oracle.bmc.auth.ResourcePrincipalAuthenticationDetailsProvider;
-import com.oracle.bmc.objectstorage.ObjectStorage;
-import com.oracle.bmc.objectstorage.ObjectStorageClient;
-import com.oracle.bmc.objectstorage.model.CopyObjectDetails;
-import com.oracle.bmc.objectstorage.model.WorkRequest;
-import com.oracle.bmc.objectstorage.requests.CopyObjectRequest;
-import com.oracle.bmc.objectstorage.requests.DeleteObjectRequest;
-import com.oracle.bmc.objectstorage.requests.GetObjectRequest;
-import com.oracle.bmc.objectstorage.requests.PutObjectRequest;
-import com.oracle.bmc.objectstorage.requests.GetWorkRequestRequest;
-import com.oracle.bmc.objectstorage.responses.CopyObjectResponse;
-import com.oracle.bmc.objectstorage.responses.DeleteObjectResponse;
-import com.oracle.bmc.objectstorage.responses.GetObjectResponse;
-import com.oracle.bmc.objectstorage.responses.PutObjectResponse;
-import com.oracle.bmc.objectstorage.responses.GetWorkRequestResponse;
-
-import java.awt.image.BufferedImage;
 import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.Arrays;
@@ -57,6 +36,26 @@ import javax.imageio.ImageIO;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.fnproject.fn.api.FnConfiguration;
+import com.fnproject.fn.api.RuntimeContext;
+import com.oracle.bmc.auth.ResourcePrincipalAuthenticationDetailsProvider;
+import com.oracle.bmc.objectstorage.ObjectStorage;
+import com.oracle.bmc.objectstorage.ObjectStorageClient;
+import com.oracle.bmc.objectstorage.model.CopyObjectDetails;
+import com.oracle.bmc.objectstorage.model.WorkRequest;
+import com.oracle.bmc.objectstorage.requests.CopyObjectRequest;
+import com.oracle.bmc.objectstorage.requests.DeleteObjectRequest;
+import com.oracle.bmc.objectstorage.requests.GetObjectRequest;
+import com.oracle.bmc.objectstorage.requests.GetWorkRequestRequest;
+import com.oracle.bmc.objectstorage.requests.PutObjectRequest;
+import com.oracle.bmc.objectstorage.responses.CopyObjectResponse;
+import com.oracle.bmc.objectstorage.responses.DeleteObjectResponse;
+import com.oracle.bmc.objectstorage.responses.GetObjectResponse;
+import com.oracle.bmc.objectstorage.responses.GetWorkRequestResponse;
+import com.oracle.bmc.objectstorage.responses.PutObjectResponse;
+
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Main class that implements the thumbnail generation function.
